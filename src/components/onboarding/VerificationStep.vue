@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useOnboardingStore, verificationSchema } from '@/stores/onboarding'
+import { useOnboardingStore, verificationSchema, industries, companySizes } from '@/stores/onboarding'
 
 const router = useRouter()
 const {
@@ -13,12 +13,14 @@ const {
   apiError,
   sendVerificationCode,
   verifyCode,
+  submitOnboardingData,
 } = useOnboardingStore()
 
 // Form validation
 const errors = ref<Record<string, string>>({})
 const codeSent = ref(false)
 const showSummary = ref(false)
+const isSubmitting = ref(false)
 
 const validateCode = () => {
   const result = verificationSchema.safeParse({ verificationCode: verification.verificationCode })
@@ -57,6 +59,42 @@ const formatFileSize = (bytes: number | null | undefined) => {
   if (bytes < 1024) return bytes + ' bytes'
   else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   else return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+// Helper functions for type-safe lookups
+const findIndustryName = (industryId: string) => {
+  return industries.find(i => i.id === industryId)?.name || industryId
+}
+
+const findCompanySizeLabel = (sizeValue: string) => {
+  return companySizes.find(s => s.value === sizeValue)?.label || sizeValue
+}
+
+// Create object URLs for images
+const getObjectURL = (file: File | null) => {
+  if (!file) return ''
+  return URL.createObjectURL(file)
+}
+
+const profileImageURL = computed(() => {
+  return personalDetails.profileImage ? getObjectURL(personalDetails.profileImage) : ''
+})
+
+const businessLogoURL = computed(() => {
+  return businessDetails.businessLogo ? getObjectURL(businessDetails.businessLogo) : ''
+})
+
+// Submit onboarding data
+const submitOnboarding = async () => {
+  isSubmitting.value = true
+  try {
+    const success = await submitOnboardingData()
+    if (success) {
+      router.push('/success')
+    }
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -250,7 +288,7 @@ const formatFileSize = (bytes: number | null | undefined) => {
                 <div v-if="personalDetails.profileImage" class="flex items-center">
                   <div class="flex-shrink-0 h-10 w-10 rounded-full overflow-hidden bg-gray-100">
                     <img
-                      :src="URL.createObjectURL(personalDetails.profileImage)"
+                      :src="profileImageURL"
                       alt="Profile preview"
                       class="h-full w-full object-cover"
                     />
@@ -285,19 +323,13 @@ const formatFileSize = (bytes: number | null | undefined) => {
           <div>
             <dt class="text-sm font-medium text-gray-500">Industry</dt>
             <dd class="mt-1 text-sm text-gray-900">
-              {{
-                industries.find((i) => i.id === businessDetails.industry)?.name ||
-                businessDetails.industry
-              }}
+              {{ findIndustryName(businessDetails.industry) }}
             </dd>
           </div>
           <div>
             <dt class="text-sm font-medium text-gray-500">Company Size</dt>
             <dd class="mt-1 text-sm text-gray-900">
-              {{
-                companySizes.find((s) => s.value === businessDetails.companySize)?.label ||
-                businessDetails.companySize
-              }}
+              {{ findCompanySizeLabel(businessDetails.companySize) }}
             </dd>
           </div>
           <div>
@@ -306,7 +338,7 @@ const formatFileSize = (bytes: number | null | undefined) => {
               <div v-if="businessDetails.businessLogo" class="flex items-center">
                 <div class="flex-shrink-0 h-10 w-10 rounded overflow-hidden bg-gray-100">
                   <img
-                    :src="URL.createObjectURL(businessDetails.businessLogo)"
+                    :src="businessLogoURL"
                     alt="Logo preview"
                     class="h-full w-full object-contain"
                   />
